@@ -1,0 +1,1169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>PixPaint</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --panel: #161b22;
+    --border: #30363d;
+    --text: #e6edf3;
+    --accent: #238636;
+    --accent2: #1f6feb;
+    --danger: #da3633;
+    --muted: #8b949e;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+  }
+  #app { display: flex; height: 100vh; width: 100vw; }
+
+  /* LEFT SIDEBAR */
+  #sidebar {
+    width: 56px;
+    background: var(--panel);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 10px 0;
+    gap: 8px;
+    z-index: 20;
+  }
+  .side-btn {
+    width: 42px; height: 42px;
+    border-radius: 10px;
+    border: none;
+    background: transparent;
+    color: var(--text);
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+    transition: background .15s;
+  }
+  .side-btn:hover, .side-btn.active { background: #21262d; }
+  .side-btn svg { width: 22px; height: 22px; fill: currentColor; }
+
+  /* MAIN AREA */
+  #main {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    background: #1a1a2e;
+  }
+  #canvas-wrap {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    cursor: crosshair;
+  }
+  #pixel-canvas {
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    position: absolute;
+    top: 0; left: 0;
+    transform-origin: 0 0;
+  }
+
+  /* TOP BAR */
+  #topbar {
+    position: absolute;
+    top: 10px; left: 50%;
+    transform: translateX(-50%);
+    background: rgba(22,27,34,0.92);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 6px 14px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    z-index: 15;
+    backdrop-filter: blur(8px);
+    font-size: 13px;
+  }
+  #coords { font-family: monospace; color: var(--muted); }
+  #pixels-left { color: #3fb950; font-weight: 600; }
+
+  /* RIGHT PANEL (tools) */
+  #tools {
+    position: absolute;
+    right: 12px; top: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    z-index: 15;
+  }
+  .tool-btn {
+    width: 44px; height: 44px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--panel);
+    color: var(--text);
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+  }
+  .tool-btn:hover, .tool-btn.active { border-color: var(--accent2); background: #21262d; }
+  .tool-btn small { font-size: 10px; display: block; }
+
+  /* PALETTE */
+  #palette {
+    position: absolute;
+    bottom: 70px; left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px;
+    max-width: 90vw;
+    justify-content: center;
+    background: rgba(22,27,34,0.9);
+    padding: 8px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    z-index: 15;
+  }
+  .color {
+    width: 22px; height: 22px;
+    border-radius: 4px;
+    cursor: pointer;
+    border: 2px solid transparent;
+  }
+  .color.selected { border-color: #fff; transform: scale(1.15); }
+
+  /* BOTTOM BAR */
+  #bottombar {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 56px;
+    background: var(--panel);
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    gap: 8px;
+    z-index: 15;
+    overflow-x: auto;
+  }
+  .bot-btn {
+    height: 36px;
+    padding: 0 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: #21262d;
+    color: var(--text);
+    cursor: pointer;
+    font-size: 13px;
+    white-space: nowrap;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .bot-btn:hover { background: #30363d; }
+
+  /* MODALS */
+  .modal-bg {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.65);
+    z-index: 100;
+    display: none;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-bg.show { display: flex; }
+  .modal {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px;
+    max-width: 420px;
+    width: 94vw;
+    max-height: 85vh;
+    overflow-y: auto;
+  }
+  .modal h2 { margin-bottom: 14px; font-size: 18px; }
+  .modal input, .modal select {
+    width: 100%;
+    padding: 10px 12px;
+    margin: 6px 0 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: #0d1117;
+    color: var(--text);
+    font-size: 14px;
+  }
+  .modal button {
+    padding: 10px 16px;
+    border-radius: 8px;
+    border: none;
+    background: var(--accent);
+    color: #fff;
+    font-weight: 600;
+    cursor: pointer;
+    margin-right: 8px;
+  }
+  .modal button.secondary { background: #21262d; border: 1px solid var(--border); }
+  .modal button.danger { background: var(--danger); }
+
+  /* LOOKUP POPUP */
+  #lookup-popup {
+    position: absolute;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px 14px;
+    z-index: 50;
+    display: none;
+    min-width: 200px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  }
+  #lookup-popup .name { font-weight: 700; font-size: 15px; }
+  #lookup-popup .meta { color: var(--muted); font-size: 12px; margin: 4px 0; }
+  #lookup-popup .medals { margin: 6px 0; }
+  #lookup-popup .mod-actions { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; }
+  #lookup-popup .mod-actions button {
+    font-size: 11px; padding: 5px 8px; border-radius: 6px;
+    border: none; cursor: pointer; background: #21262d; color: var(--text);
+  }
+  #lookup-popup .mod-actions button.danger { background: var(--danger); color: #fff; }
+
+  /* EARN MODAL */
+  #earn-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin: 12px 0;
+  }
+  .earn-opt {
+    padding: 12px 8px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: #21262d;
+    cursor: pointer;
+    text-align: center;
+    font-size: 13px;
+    text-transform: capitalize;
+  }
+  .earn-opt:hover { border-color: var(--accent2); }
+
+  /* SETTINGS */
+  .setting-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .toggle {
+    width: 44px; height: 24px;
+    border-radius: 12px;
+    background: #30363d;
+    position: relative;
+    cursor: pointer;
+  }
+  .toggle.on { background: var(--accent); }
+  .toggle::after {
+    content: "";
+    position: absolute;
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    background: #fff;
+    top: 3px; left: 3px;
+    transition: left .15s;
+  }
+  .toggle.on::after { left: 23px; }
+
+  /* CHAT */
+  #chat-panel {
+    position: absolute;
+    right: 12px; bottom: 70px;
+    width: 300px; max-height: 340px;
+    background: rgba(22,27,34,0.95);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    display: none;
+    flex-direction: column;
+    z-index: 20;
+  }
+  #chat-panel.show { display: flex; }
+  #chat-tabs { display: flex; border-bottom: 1px solid var(--border); }
+  #chat-tabs button {
+    flex: 1; padding: 8px; border: none; background: transparent;
+    color: var(--muted); cursor: pointer; font-size: 12px;
+  }
+  #chat-tabs button.active { color: var(--text); border-bottom: 2px solid var(--accent2); }
+  #chat-messages {
+    flex: 1; overflow-y: auto; padding: 8px;
+    font-size: 13px; max-height: 240px;
+  }
+  .chat-msg { margin-bottom: 6px; }
+  .chat-msg .u { font-weight: 600; color: #58a6ff; }
+  .chat-msg .u.mod { color: #f78166; }
+  #chat-input-row { display: flex; border-top: 1px solid var(--border); }
+  #chat-input {
+    flex: 1; border: none; background: transparent;
+    padding: 10px; color: var(--text); font-size: 13px;
+  }
+  #chat-send {
+    border: none; background: var(--accent2); color: #fff;
+    padding: 0 14px; cursor: pointer;
+  }
+
+  /* CLANS LIST */
+  .clan-item {
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-bottom: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  /* NOTIFY */
+  #notify {
+    position: fixed;
+    top: 20px; right: 20px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    padding: 12px 18px;
+    border-radius: 10px;
+    z-index: 200;
+    display: none;
+    max-width: 280px;
+  }
+  #notify.show { display: block; animation: fadeIn .2s; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } }
+
+  /* MOBILE */
+  @media (max-width: 600px) {
+    #sidebar { width: 48px; }
+    #palette { bottom: 60px; }
+    .color { width: 18px; height: 18px; }
+    #chat-panel { width: calc(100vw - 24px); right: 12px; left: 12px; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- LEFT SIDEBAR -->
+  <div id="sidebar">
+    <button class="side-btn" id="btn-profile" title="Profile">👤</button>
+    <button class="side-btn" id="btn-settings" title="Settings">⚙️</button>
+    <button class="side-btn" id="btn-download" title="Download screen">⬇️</button>
+    <button class="side-btn" id="btn-templates" title="Templates">📋</button>
+    <button class="side-btn" id="btn-clans" title="Clans">🛡️</button>
+    <div style="flex:1"></div>
+    <button class="side-btn" id="btn-chat" title="Chat">💬</button>
+  </div>
+
+  <!-- MAIN CANVAS -->
+  <div id="main">
+    <div id="canvas-wrap">
+      <canvas id="pixel-canvas" width="4096" height="4096"></canvas>
+    </div>
+
+    <div id="topbar">
+      <span id="coords">0000 × 0000</span>
+      <span>|</span>
+      <span>Pixels: <span id="pixels-left">60</span> / <span id="pixels-limit">60</span></span>
+      <span id="user-badge" style="display:none"></span>
+    </div>
+
+    <div id="tools">
+      <button class="tool-btn active" id="tool-paint" title="Paint">🖌️</button>
+      <button class="tool-btn" id="tool-lookup" title="Lookup (who placed)">🔍</button>
+      <button class="tool-btn" id="tool-brush1" title="1×1">1</button>
+      <button class="tool-btn" id="tool-brush3" title="3×3">3</button>
+      <button class="tool-btn" id="tool-brush5" title="5×5">5</button>
+    </div>
+
+    <div id="palette"></div>
+
+    <div id="bottombar">
+      <button class="bot-btn" id="btn-earn">🐾 Заробити</button>
+      <button class="bot-btn" id="btn-login">Увійти</button>
+      <button class="bot-btn" id="btn-register" style="display:none">Реєстрація</button>
+      <span style="flex:1"></span>
+      <span style="font-size:12px;color:var(--muted)" id="status">Connecting...</span>
+    </div>
+
+    <!-- LOOKUP POPUP -->
+    <div id="lookup-popup"></div>
+
+    <!-- CHAT -->
+    <div id="chat-panel">
+      <div id="chat-tabs">
+        <button class="active" data-ch="global">Global</button>
+        <button data-ch="ru">RU</button>
+        <button data-ch="en">EN</button>
+        <button data-ch="ar">AR</button>
+        <button data-ch="tr">TR</button>
+      </div>
+      <div id="chat-messages"></div>
+      <div id="chat-input-row">
+        <input id="chat-input" placeholder="Message..." maxlength="200">
+        <button id="chat-send">➤</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- NOTIFY -->
+<div id="notify"></div>
+
+<!-- MODALS -->
+<div class="modal-bg" id="modal-auth">
+  <div class="modal">
+    <h2 id="auth-title">Login</h2>
+    <input id="auth-user" placeholder="Username" autocomplete="username">
+    <input id="auth-pass" type="password" placeholder="Password" autocomplete="current-password">
+    <div>
+      <button id="auth-submit">OK</button>
+      <button class="secondary" id="auth-switch">Need account?</button>
+      <button class="secondary" onclick="closeModal('modal-auth')">Close</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="modal-profile">
+  <div class="modal">
+    <h2>Profile</h2>
+    <div id="profile-content"></div>
+    <hr style="border-color:var(--border);margin:14px 0">
+    <h3 style="font-size:14px;margin-bottom:8px">Become Moderator</h3>
+    <input id="mod-code" placeholder="Enter mod code">
+    <button id="btn-become-mod">Submit Code</button>
+    <div style="margin-top:16px">
+      <button class="secondary" onclick="closeModal('modal-profile')">Close</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="modal-settings">
+  <div class="modal">
+    <h2>Settings</h2>
+    <div class="setting-row">
+      <span>Canvas Grid (G)</span>
+      <div class="toggle on" id="tog-grid" onclick="this.classList.toggle('on')"></div>
+    </div>
+    <div class="setting-row">
+      <span>Pixel Notifications (X)</span>
+      <div class="toggle on" id="tog-notif" onclick="this.classList.toggle('on')"></div>
+    </div>
+    <div class="setting-row">
+      <span>History Mode (H)</span>
+      <div class="toggle" id="tog-history" onclick="this.classList.toggle('on')"></div>
+    </div>
+    <div class="setting-row">
+      <span>Sound effects (M)</span>
+      <div class="toggle on" id="tog-sound" onclick="this.classList.toggle('on')"></div>
+    </div>
+    <div class="setting-row">
+      <span>Language</span>
+      <select id="lang-select" style="width:auto">
+        <option value="en">English</option>
+        <option value="ru">Русский</option>
+        <option value="tr">Türkçe</option>
+      </select>
+    </div>
+    <div style="margin-top:16px">
+      <button class="secondary" onclick="closeModal('modal-settings')">Close</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="modal-earn">
+  <div class="modal">
+    <h2>Earn Pixels 🐾</h2>
+    <p style="color:var(--muted);font-size:13px;margin-bottom:8px">Choose the correct animal</p>
+    <div id="earn-grid"></div>
+    <p id="earn-status" style="margin-top:8px;font-size:13px"></p>
+    <button class="secondary" onclick="closeModal('modal-earn')">Close</button>
+  </div>
+</div>
+
+<div class="modal-bg" id="modal-clans">
+  <div class="modal">
+    <h2>Clans</h2>
+    <div id="clans-list"></div>
+    <hr style="border-color:var(--border);margin:14px 0">
+    <input id="clan-name" placeholder="New clan name">
+    <button id="btn-create-clan">Create Clan</button>
+    <div style="margin-top:12px">
+      <button class="secondary" onclick="closeModal('modal-clans')">Close</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="modal-clear">
+  <div class="modal">
+    <h2>Clear Water / Area (Mod)</h2>
+    <p style="font-size:13px;color:var(--muted)">Set two corners (x1,y1) → (x2,y2)</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <input id="clear-x1" type="number" placeholder="X1" value="0">
+      <input id="clear-y1" type="number" placeholder="Y1" value="0">
+      <input id="clear-x2" type="number" placeholder="X2" value="100">
+      <input id="clear-y2" type="number" placeholder="Y2" value="100">
+    </div>
+    <label style="display:flex;align-items:center;gap:8px;margin:12px 0;font-size:13px">
+      <input type="checkbox" id="clear-full"> Full canvas clear (dangerous)
+    </label>
+    <button class="danger" id="btn-do-clear">Clear</button>
+    <button class="secondary" onclick="closeModal('modal-clear')">Cancel</button>
+  </div>
+</div>
+
+<script>
+(() => {
+  const CANVAS_SIZE = 4096;
+  const PALETTE = [
+    "#FF0000","#FF1A00","#FF3300","#FF4D00","#FF6600",
+    "#FF8000","#FF9900","#FFB300","#FFCC00","#FFE600",
+    "#FFFF00","#E6FF00","#CCFF00","#B3FF00","#99FF00",
+    "#80FF00","#66FF00","#4DFF00","#33FF00","#1AFF00",
+    "#00FF00","#00FF1A","#00FF33","#00FF4D","#00FF66",
+    "#00FF80","#00FF99","#00FFB3","#00FFCC","#00FFE6",
+    "#00FFFF","#00E6FF","#00CCFF","#00B3FF","#0099FF",
+    "#0080FF","#0066FF","#004DFF","#0033FF","#001AFF",
+    "#0000FF","#1A00FF","#3300FF","#4D00FF","#6600FF",
+    "#8000FF","#9900FF","#B300FF","#CC00FF","#E600FF",
+    "#FF00FF","#FFFFFF","#C0C0C0","#808080","#000000"
+  ];
+
+  // STATE
+  let token = localStorage.getItem("pix_token") || null;
+  let user = null;
+  let selectedColor = PALETTE[0];
+  let tool = "paint"; // paint | lookup
+  let brushSize = 1;
+  let scale = 1;
+  let offsetX = 0, offsetY = 0;
+  let isDragging = false;
+  let lastMouse = {x:0,y:0};
+  let ws = null;
+  let earnCooldown = 0;
+  let currentChannel = "global";
+  let placing = false;
+
+  const canvas = document.getElementById("pixel-canvas");
+  const ctx = canvas.getContext("2d", { alpha: false });
+  const wrap = document.getElementById("canvas-wrap");
+
+  // Init black canvas
+  ctx.fillStyle = "#1a1a2e";
+  ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+
+  // ============ PALETTE ============
+  const paletteEl = document.getElementById("palette");
+  PALETTE.forEach((c, i) => {
+    const d = document.createElement("div");
+    d.className = "color" + (i === 0 ? " selected" : "");
+    d.style.background = c;
+    d.onclick = () => {
+      selectedColor = c;
+      document.querySelectorAll(".color").forEach(e => e.classList.remove("selected"));
+      d.classList.add("selected");
+    };
+    paletteEl.appendChild(d);
+  });
+
+  // ============ API ============
+  async function api(path, opts = {}) {
+    const headers = opts.headers || {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    if (opts.body && typeof opts.body === "object" && !(opts.body instanceof FormData)) {
+      headers["Content-Type"] = "application/json";
+      opts.body = JSON.stringify(opts.body);
+    }
+    const res = await fetch(path, { ...opts, headers });
+    if (res.status === 401) {
+      token = null;
+      localStorage.removeItem("pix_token");
+      user = null;
+      updateUI();
+    }
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.detail || data.msg || res.statusText);
+    return data;
+  }
+
+  // ============ AUTH ============
+  async function loadMe() {
+    try {
+      const data = await api("/me");
+      if (data.guest) {
+        user = null;
+        document.getElementById("pixels-left").textContent = data.pixels_left;
+        document.getElementById("pixels-limit").textContent = data.limit;
+      } else {
+        user = data;
+        document.getElementById("pixels-left").textContent = data.pixels_left;
+        document.getElementById("pixels-limit").textContent = data.limit;
+        document.getElementById("user-badge").style.display = "inline";
+        document.getElementById("user-badge").textContent = "@" + data.username + (data.is_mod ? " 🛡️" : "");
+      }
+      updateUI();
+    } catch (e) {
+      console.warn(e);
+    }
+  }
+
+  function updateUI() {
+    const loginBtn = document.getElementById("btn-login");
+    if (user) {
+      loginBtn.textContent = "Вийти";
+      loginBtn.onclick = () => {
+        token = null;
+        localStorage.removeItem("pix_token");
+        user = null;
+        updateUI();
+        loadMe();
+      };
+    } else {
+      loginBtn.textContent = "Увійти";
+      loginBtn.onclick = () => openAuth(false);
+    }
+  }
+
+  // ============ WEBSOCKET ============
+  function connectWS() {
+    const proto = location.protocol === "https:" ? "wss" : "ws";
+    ws = new WebSocket(`${proto}://${location.host}/ws`);
+    ws.onopen = () => {
+      document.getElementById("status").textContent = "Online";
+      document.getElementById("status").style.color = "#3fb950";
+    };
+    ws.onclose = () => {
+      document.getElementById("status").textContent = "Reconnecting...";
+      document.getElementById("status").style.color = "#d29922";
+      setTimeout(connectWS, 2000);
+    };
+    ws.onmessage = (ev) => {
+      try {
+        const msg = JSON.parse(ev.data);
+        if (msg.type === "pixel") {
+          putPixel(msg.x, msg.y, msg.color);
+        } else if (msg.type === "clear") {
+          ctx.fillStyle = "#1a1a2e";
+          ctx.fillRect(msg.x1, msg.y1, msg.x2 - msg.x1 + 1, msg.y2 - msg.y1 + 1);
+        } else if (msg.type === "clear_all") {
+          ctx.fillStyle = "#1a1a2e";
+          ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+        } else if (msg.type === "chat") {
+          appendChat(msg);
+        }
+      } catch (e) {}
+    };
+  }
+
+  function putPixel(x, y, color) {
+    ctx.fillStyle = color;
+    ctx.fillRect(x, y, 1, 1);
+  }
+
+  // ============ LOAD INITIAL CHUNK ============
+  async function loadInitial() {
+    // Завантажуємо центральну область для швидкого старту
+    try {
+      const chunk = await api(`/canvas/chunk?x1=0&y1=0&x2=512&y2=512`);
+      chunk.forEach(p => putPixel(p.x, p.y, p.color));
+    } catch (e) {
+      console.warn("chunk load", e);
+    }
+  }
+
+  // ============ CAMERA / ZOOM / PAN ============
+  function applyTransform() {
+    canvas.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${scale})`;
+  }
+
+  wrap.addEventListener("wheel", (e) => {
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? 0.9 : 1.1;
+    const newScale = Math.min(40, Math.max(0.05, scale * delta));
+    const rect = wrap.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    offsetX = mx - (mx - offsetX) * (newScale / scale);
+    offsetY = my - (my - offsetY) * (newScale / scale);
+    scale = newScale;
+    applyTransform();
+  }, { passive: false });
+
+  wrap.addEventListener("mousedown", (e) => {
+    if (e.button === 1 || e.button === 2 || tool === "pan") {
+      isDragging = true;
+      lastMouse = { x: e.clientX, y: e.clientY };
+    }
+  });
+  window.addEventListener("mouseup", () => { isDragging = false; });
+  window.addEventListener("mousemove", (e) => {
+    if (isDragging) {
+      offsetX += e.clientX - lastMouse.x;
+      offsetY += e.clientY - lastMouse.y;
+      lastMouse = { x: e.clientX, y: e.clientY };
+      applyTransform();
+    }
+    // coords
+    const rect = wrap.getBoundingClientRect();
+    const cx = Math.floor((e.clientX - rect.left - offsetX) / scale);
+    const cy = Math.floor((e.clientY - rect.top - offsetY) / scale);
+    if (cx >= 0 && cy >= 0 && cx < CANVAS_SIZE && cy < CANVAS_SIZE) {
+      document.getElementById("coords").textContent =
+        String(cx).padStart(4, "0") + " × " + String(cy).padStart(4, "0");
+    }
+  });
+
+  // Touch pan/zoom simplified
+  let lastTouchDist = 0;
+  wrap.addEventListener("touchstart", (e) => {
+    if (e.touches.length === 2) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      lastTouchDist = Math.hypot(dx, dy);
+    } else if (e.touches.length === 1) {
+      isDragging = true;
+      lastMouse = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    }
+  }, { passive: true });
+  wrap.addEventListener("touchmove", (e) => {
+    if (e.touches.length === 2) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      const dist = Math.hypot(dx, dy);
+      const delta = dist / lastTouchDist;
+      scale = Math.min(40, Math.max(0.05, scale * delta));
+      lastTouchDist = dist;
+      applyTransform();
+    } else if (isDragging && e.touches.length === 1) {
+      offsetX += e.touches[0].clientX - lastMouse.x;
+      offsetY += e.touches[0].clientY - lastMouse.y;
+      lastMouse = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      applyTransform();
+    }
+  }, { passive: true });
+  wrap.addEventListener("touchend", () => { isDragging = false; });
+
+  // ============ PLACE / LOOKUP ============
+  async function handleClick(e) {
+    if (isDragging) return;
+    const rect = wrap.getBoundingClientRect();
+    const cx = Math.floor((e.clientX - rect.left - offsetX) / scale);
+    const cy = Math.floor((e.clientY - rect.top - offsetY) / scale);
+    if (cx < 0 || cy < 0 || cx >= CANVAS_SIZE || cy >= CANVAS_SIZE) return;
+
+    if (tool === "lookup") {
+      showLookup(cx, cy, e.clientX, e.clientY);
+      return;
+    }
+
+    if (placing) return;
+    placing = true;
+    try {
+      // brush
+      const half = Math.floor(brushSize / 2);
+      for (let dy = -half; dy <= half; dy++) {
+        for (let dx = -half; dx <= half; dx++) {
+          const px = cx + dx, py = cy + dy;
+          if (px >= 0 && py >= 0 && px < CANVAS_SIZE && py < CANVAS_SIZE) {
+            await api("/place", {
+              method: "POST",
+              body: { x: px, y: py, color: selectedColor }
+            });
+            putPixel(px, py, selectedColor);
+          }
+        }
+      }
+      await loadMe();
+    } catch (err) {
+      notify(err.message || "Error placing");
+    } finally {
+      placing = false;
+    }
+  }
+
+  wrap.addEventListener("click", handleClick);
+  wrap.addEventListener("contextmenu", (e) => e.preventDefault());
+
+  // ============ LOOKUP ============
+  async function showLookup(x, y, screenX, screenY) {
+    const popup = document.getElementById("lookup-popup");
+    popup.style.display = "block";
+    popup.style.left = Math.min(screenX + 10, window.innerWidth - 240) + "px";
+    popup.style.top = Math.min(screenY + 10, window.innerHeight - 200) + "px";
+    popup.innerHTML = "Loading...";
+    try {
+      const data = await api(`/lookup?x=${x}&y=${y}`);
+      if (data.empty) {
+        popup.innerHTML = `<div class="name">Empty pixel</div><div class="meta">${x} × ${y}</div>`;
+        return;
+      }
+      let html = `
+        <div class="name">@${data.username}</div>
+        <div class="meta">${x} × ${y} · ${data.color}</div>
+        <div class="meta">${data.placed_at ? new Date(data.placed_at).toLocaleString() : ""}</div>
+        <div class="medals">
+          ${data.is_mod ? "🛡️ Mod " : ""}
+          ${data.discord_medal ? "🎮 Discord " : ""}
+          ${(data.medals || []).join(" ")}
+        </div>
+      `;
+      if (user && user.is_mod) {
+        html += `<div class="mod-actions">
+          <button onclick="modAction('ban','${data.username}')">Ban</button>
+          <button onclick="modAction('mute','${data.username}')">Mute 30m</button>
+          <button onclick="modAction('no_place','${data.username}')">No place 1h</button>
+          <button class="danger" onclick="modAction('delete_account','${data.username}')">Delete acc</button>
+          <button onclick="openClearModal()">Clear area</button>
+        </div>`;
+      }
+      popup.innerHTML = html;
+    } catch (e) {
+      popup.innerHTML = "Error";
+    }
+  }
+
+  window.modAction = async (action, target) => {
+    try {
+      await api(`/mod/${action}`, {
+        method: "POST",
+        body: { target, minutes: action === "no_place" ? 60 : 30 }
+      });
+      notify(`OK: ${action} → ${target}`);
+      document.getElementById("lookup-popup").style.display = "none";
+    } catch (e) {
+      notify(e.message);
+    }
+  };
+
+  document.addEventListener("click", (e) => {
+    const popup = document.getElementById("lookup-popup");
+    if (!popup.contains(e.target) && tool === "lookup") {
+      // keep open only while lookup tool
+    }
+    if (!popup.contains(e.target) && e.target.id !== "tool-lookup") {
+      // optional close
+    }
+  });
+
+  // ============ TOOLS ============
+  document.getElementById("tool-paint").onclick = () => {
+    tool = "paint";
+    document.querySelectorAll(".tool-btn").forEach(b => b.classList.remove("active"));
+    document.getElementById("tool-paint").classList.add("active");
+    wrap.style.cursor = "crosshair";
+  };
+  document.getElementById("tool-lookup").onclick = () => {
+    tool = "lookup";
+    document.querySelectorAll(".tool-btn").forEach(b => b.classList.remove("active"));
+    document.getElementById("tool-lookup").classList.add("active");
+    wrap.style.cursor = "help";
+  };
+  document.getElementById("tool-brush1").onclick = () => { brushSize = 1; setBrushActive(1); };
+  document.getElementById("tool-brush3").onclick = () => { brushSize = 3; setBrushActive(3); };
+  document.getElementById("tool-brush5").onclick = () => { brushSize = 5; setBrushActive(5); };
+  function setBrushActive(n) {
+    ["1","3","5"].forEach(s => {
+      document.getElementById("tool-brush"+s).classList.toggle("active", s == n);
+    });
+  }
+
+  // ============ MODALS ============
+  function openModal(id) { document.getElementById(id).classList.add("show"); }
+  function closeModal(id) { document.getElementById(id).classList.remove("show"); }
+  window.closeModal = closeModal;
+
+  function openAuth(isRegister) {
+    document.getElementById("auth-title").textContent = isRegister ? "Register" : "Login";
+    document.getElementById("auth-switch").textContent = isRegister ? "Have account?" : "Need account?";
+    document.getElementById("auth-switch").dataset.reg = isRegister ? "0" : "1";
+    openModal("modal-auth");
+  }
+
+  document.getElementById("auth-switch").onclick = () => {
+    const next = document.getElementById("auth-switch").dataset.reg === "1";
+    openAuth(next);
+  };
+
+  document.getElementById("auth-submit").onclick = async () => {
+    const u = document.getElementById("auth-user").value.trim();
+    const p = document.getElementById("auth-pass").value;
+    if (!u || !p) return notify("Fill fields");
+    const isReg = document.getElementById("auth-title").textContent === "Register";
+    try {
+      if (isReg) {
+        const fd = new FormData();
+        fd.append("username", u);
+        fd.append("password", p);
+        await fetch("/register", { method: "POST", body: fd });
+        notify("Registered! Now login");
+        openAuth(false);
+      } else {
+        const fd = new FormData();
+        fd.append("username", u);
+        fd.append("password", p);
+        const res = await fetch("/token", { method: "POST", body: fd });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || "Login failed");
+        token = data.access_token;
+        localStorage.setItem("pix_token", token);
+        user = data.user;
+        closeModal("modal-auth");
+        loadMe();
+        notify("Welcome, " + u);
+      }
+    } catch (e) {
+      notify(e.message);
+    }
+  };
+
+  // Profile
+  document.getElementById("btn-profile").onclick = async () => {
+    await loadMe();
+    const el = document.getElementById("profile-content");
+    if (!user) {
+      el.innerHTML = "<p>You are a guest. Login to save progress.</p>";
+    } else {
+      el.innerHTML = `
+        <p><b>@${user.username}</b> ${user.is_mod ? "🛡️ Moderator" : ""}</p>
+        <p>Pixels left: ${user.pixels_left} / ${user.limit}</p>
+        <p>Medals: ${(user.medals||[]).join(", ") || "—"}</p>
+        <p>Discord: ${user.discord_medal ? "Yes (+100)" : "No"}</p>
+        <p>Clan: ${user.clan_id || "None"}</p>
+      `;
+    }
+    openModal("modal-profile");
+  };
+
+  document.getElementById("btn-become-mod").onclick = async () => {
+    const code = document.getElementById("mod-code").value.trim();
+    try {
+      await api("/mod/become", { method: "POST", body: { code } });
+      notify("You are now a moderator!");
+      loadMe();
+      closeModal("modal-profile");
+    } catch (e) {
+      notify(e.message);
+    }
+  };
+
+  // Settings
+  document.getElementById("btn-settings").onclick = () => openModal("modal-settings");
+
+  // Earn
+  document.getElementById("btn-earn").onclick = async () => {
+    if (earnCooldown > 0) {
+      notify(`Cooldown: ${earnCooldown}s`);
+      return;
+    }
+    try {
+      const data = await api("/earn/start");
+      const grid = document.getElementById("earn-grid");
+      grid.innerHTML = "";
+      data.options.forEach(opt => {
+        const b = document.createElement("div");
+        b.className = "earn-opt";
+        b.textContent = opt;
+        b.onclick = () => checkEarn(opt, data.session_id);
+        grid.appendChild(b);
+      });
+      document.getElementById("earn-status").textContent = "";
+      openModal("modal-earn");
+    } catch (e) {
+      notify(e.message);
+    }
+  };
+
+  async function checkEarn(answer, sessionId) {
+    try {
+      const data = await api(`/earn/check?session_id=${sessionId}`, {
+        method: "POST",
+        body: { answer, correct: "" }
+      });
+      if (data.ok) {
+        document.getElementById("earn-status").textContent = `+${data.added} pixels!`;
+        document.getElementById("earn-status").style.color = "#3fb950";
+        earnCooldown = data.next_cooldown || 7;
+        loadMe();
+        setTimeout(() => closeModal("modal-earn"), 1200);
+      } else {
+        document.getElementById("earn-status").textContent = `Wrong! Correct: ${data.correct}`;
+        document.getElementById("earn-status").style.color = "#f85149";
+        earnCooldown = data.next_cooldown || 5;
+      }
+      startCooldownTimer();
+    } catch (e) {
+      notify(e.message);
+    }
+  }
+
+  function startCooldownTimer() {
+    const t = setInterval(() => {
+      earnCooldown--;
+      if (earnCooldown <= 0) clearInterval(t);
+    }, 1000);
+  }
+
+  // Clans
+  document.getElementById("btn-clans").onclick = async () => {
+    try {
+      const list = await api("/clans");
+      const el = document.getElementById("clans-list");
+      if (!list.length) {
+        el.innerHTML = "<p style='color:var(--muted)'>No clans yet</p>";
+      } else {
+        el.innerHTML = list.map(c => `
+          <div class="clan-item">
+            <div>
+              <b>${c.name}</b><br>
+              <small>${c.members_count}/20 · Leader: ${c.leader}</small>
+            </div>
+            <button onclick="joinClan('${c.id}')">Join</button>
+          </div>
+        `).join("");
+      }
+      openModal("modal-clans");
+    } catch (e) {
+      notify(e.message);
+    }
+  };
+
+  window.joinClan = async (id) => {
+    try {
+      await api("/clan/join", { method: "POST", body: { clan_id: id } });
+      notify("Joined clan!");
+      loadMe();
+      closeModal("modal-clans");
+    } catch (e) {
+      notify(e.message);
+    }
+  };
+
+  document.getElementById("btn-create-clan").onclick = async () => {
+    const name = document.getElementById("clan-name").value.trim();
+    if (!name) return;
+    try {
+      await api("/clan/create", { method: "POST", body: { name } });
+      notify("Clan created!");
+      loadMe();
+      closeModal("modal-clans");
+    } catch (e) {
+      notify(e.message);
+    }
+  };
+
+  // Clear water (mod)
+  window.openClearModal = () => openModal("modal-clear");
+  document.getElementById("btn-do-clear").onclick = async () => {
+    const full = document.getElementById("clear-full").checked;
+    const body = {
+      x1: +document.getElementById("clear-x1").value,
+      y1: +document.getElementById("clear-y1").value,
+      x2: +document.getElementById("clear-x2").value,
+      y2: +document.getElementById("clear-y2").value,
+      full
+    };
+    try {
+      const res = await api("/mod/clear_water", { method: "POST", body });
+      notify(res.msg || `Deleted ${res.deleted || 0} pixels`);
+      closeModal("modal-clear");
+    } catch (e) {
+      notify(e.message);
+    }
+  };
+
+  // Chat
+  document.getElementById("btn-chat").onclick = () => {
+    document.getElementById("chat-panel").classList.toggle("show");
+  };
+  document.querySelectorAll("#chat-tabs button").forEach(btn => {
+    btn.onclick = () => {
+      document.querySelectorAll("#chat-tabs button").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      currentChannel = btn.dataset.ch;
+      loadChat();
+    };
+  });
+  async function loadChat() {
+    try {
+      const msgs = await api(`/chat/history?channel=${currentChannel}`);
+      const box = document.getElementById("chat-messages");
+      box.innerHTML = msgs.map(m => `
+        <div class="chat-msg">
+          <span class="u ${m.is_mod ? "mod" : ""}">${m.username}</span>: ${escapeHtml(m.message)}
+        </div>
+      `).join("");
+      box.scrollTop = box.scrollHeight;
+    } catch (e) {}
+  }
+  function appendChat(m) {
+    if (m.channel !== currentChannel) return;
+    const box = document.getElementById("chat-messages");
+    box.innerHTML += `
+      <div class="chat-msg">
+        <span class="u ${m.is_mod ? "mod" : ""}">${m.username}</span>: ${escapeHtml(m.message)}
+      </div>`;
+    box.scrollTop = box.scrollHeight;
+  }
+  document.getElementById("chat-send").onclick = sendChat;
+  document.getElementById("chat-input").onkeydown = (e) => { if (e.key === "Enter") sendChat(); };
+  async function sendChat() {
+    const input = document.getElementById("chat-input");
+    const msg = input.value.trim();
+    if (!msg) return;
+    try {
+      await api("/chat", { method: "POST", body: { message: msg, channel: currentChannel } });
+      input.value = "";
+    } catch (e) {
+      notify(e.message);
+    }
+  }
+  function escapeHtml(s) {
+    return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  }
+
+  // Download screenshot
+  document.getElementById("btn-download").onclick = () => {
+    const link = document.createElement("a");
+    link.download = `pixpaint-${Date.now()}.png`;
+    link.href = canvas.toDataURL("image/png");
+    link.click();
+  };
+
+  // Notify
+  function notify(text) {
+    const n = document.getElementById("notify");
+    n.textContent = text;
+    n.classList.add("show");
+    setTimeout(() => n.classList.remove("show"), 3000);
+  }
+  window.notify = notify;
+
+  // Center camera on start
+  function centerCamera() {
+    const w = wrap.clientWidth;
+    const h = wrap.clientHeight;
+    scale = Math.min(w, h) / 800;
+    offsetX = (w - CANVAS_SIZE * scale) / 2;
+    offsetY = (h - CANVAS_SIZE * scale) / 2;
+    applyTransform();
+  }
+
+  // INIT
+  centerCamera();
+  connectWS();
+  loadMe();
+  loadInitial();
+  loadChat();
+
+  window.addEventListener("resize", centerCamera);
+})();
+</script>
+</body>
+</html>
